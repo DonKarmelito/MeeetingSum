@@ -1,0 +1,7 @@
+openai==2.28.0
+python-dotenv==1.2.2
+python_docx==1.2.0
+qdrant_client==1.17.1
+streamlit==1.55.0
+streamlit_audiorecorder==0.0.6
+pydub
