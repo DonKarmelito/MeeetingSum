@@ -3,7 +3,6 @@ import openai
 import tempfile
 import os
 from dotenv import load_dotenv, dotenv_values
-from audiorecorder import audiorecorder
 from io import BytesIO
 from docx import Document
 from datetime import datetime
@@ -262,7 +261,7 @@ with tab1:
         st.write("Nagrywanie w przeglądarce")
 
         # natywny rejestrator Streamlit
-        audio_file = st.audio_input("Nagraj notatkę (kliknij mikrofon, mów 2–5 s, potem Stop)")
+        audio_file = st.audio_input("Nagraj notatkę")
 
         if audio_file is None:
             st.info("Brak nagrania – kliknij mikrofon, powiedz kilka sekund i zatrzymaj.")
