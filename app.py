@@ -351,34 +351,29 @@ with tab1:
                         st.error(f"Błąd transkrypcji: {e}")
 
     # ---------- RECORD ----------
+    # PO:
     with record:
         st.write("Nagrywanie w przeglądarce")
-
-        # natywny rejestrator Streamlit
         audio_file = st.audio_input("Nagraj notatkę")
 
         if audio_file is None:
             st.info("Brak nagrania – kliknij mikrofon, powiedz kilka sekund i zatrzymaj.")
-            st.stop()
+        else:
+            st.audio(audio_file)
 
-        # podgląd
-        st.audio(audio_file)
-
-        # wyślij do Whisper
-        if st.button("Transkrybuj nagranie", key="transkrybuj_nagranie_webrtc"):
-            try:
-                with st.spinner("Transkrybuję..."):
-                    audio_file.seek(0)
-                    # Streamlit zwykle daje WAV; nazwijmy plik .wav
-                    transcript = client.audio.transcriptions.create(
-                        model="whisper-1",
-                        file=("nagranie.wav", audio_file, "audio/wav")
-                    )
-                st.session_state.transkrypcja = transcript.text
-                st.session_state.nazwa_pliku = "nagranie"
-                st.success("Transkrypcja gotowa.")
-            except Exception as e:
-                st.error(f"Błąd transkrypcji: {e}")
+            if st.button("Transkrybuj nagranie", key="transkrybuj_nagranie_webrtc"):
+                try:
+                    with st.spinner("Transkrybuję..."):
+                        audio_file.seek(0)
+                        transcript = client.audio.transcriptions.create(
+                            model="whisper-1",
+                            file=("nagranie.wav", audio_file, "audio/wav")
+                        )
+                    st.session_state.transkrypcja = transcript.text
+                    st.session_state.nazwa_pliku = "nagranie"
+                    st.success("Transkrypcja gotowa.")
+                except Exception as e:
+                    st.error(f"Błąd transkrypcji: {e}")
 
     # ====================================================
     # TRANSKRYPCJA I PODSUMOWANIE
@@ -439,7 +434,7 @@ with tab1:
 
         teraz = datetime.now().strftime("%Y-%m-%d_%H-%M")
 
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3 = st.columns(3)
 
         with col1:
             if not qdrant_ok:
@@ -482,26 +477,6 @@ with tab1:
                 file_name=f"meeting_{teraz}_EN.docx",
                 key="pobierz_en"
             )
-
-        with col4:
-            if not qdrant_ok:
-                st.warning("Brak połączenia z bazą")
-            elif st.session_state.zapisano_qdrant:
-                st.success("Zapisano!")
-            else:
-                if st.button("Zapisz w bazie", key="zapisz_baza"):
-                    try:
-                        with st.spinner("Zapisuję..."):
-                            zapisz_do_qdrant(
-                                st.session_state.podsumowanie,
-                                st.session_state.transkrypcja,
-                                st.session_state.nazwa_pliku,
-                                st.session_state.podsumowanie_en
-                            )
-                        st.session_state.zapisano_qdrant = True
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Błąd zapisu do bazy: {e}")
 
 # ====================================================
 # BAZA
