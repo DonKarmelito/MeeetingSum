@@ -71,6 +71,22 @@ def get_embedding(text):
     )
     return res.data[0].embedding
 
+def wyodrebnij_audio(plik_video):
+    """Wyciąga audio z video i zwraca ścieżkę do pliku mp3."""
+    suffix = os.path.splitext(plik_video)[1]
+    
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_audio:
+        tmp_audio_path = tmp_audio.name
+
+    wynik = os.system(
+        f'ffmpeg -i "{plik_video}" -vn -acodec libmp3lame -q:a 4 "{tmp_audio_path}" -y -loglevel quiet'
+    )
+    
+    if wynik != 0:
+        raise Exception("FFmpeg nie mógł przetworzyć pliku video.")
+    
+    return tmp_audio_path
+
 def zapisz_do_qdrant(podsumowanie, transkrypcja, nazwa, podsumowanie_en=""):
     embedding = get_embedding(podsumowanie + "\n" + transkrypcja)
     qdrant.upsert(
@@ -290,7 +306,9 @@ with tab1:
 
                 if st.button("Transkrybuj plik", key="transkrybuj_plik"):
                     try:
-                        with st.spinner("Transkrybuję..."):
+                        jest_video = uploaded_file.name.lower().endswith((".mp4", ".webm", ".mov", ".avi"))
+
+                        with st.spinner("Zapisuję plik..."):
                             with tempfile.NamedTemporaryFile(
                                 suffix=os.path.splitext(uploaded_file.name)[1],
                                 delete=False
@@ -298,12 +316,32 @@ with tab1:
                                 tmp.write(uploaded_file.read())
                                 tmp_path = tmp.name
 
+                        # Ekstrakcja audio z video
+                        if jest_video:
+                            with st.spinner("Wyodrębniam audio z video (może chwilę potrwać)..."):
+                                try:
+                                    audio_path = wyodrebnij_audio(tmp_path)
+                                    os.unlink(tmp_path)  # usuń oryginalny video
+                                    tmp_path = audio_path
+                                    st.info("✅ Audio wyodrębnione — rozpoczynam transkrypcję...")
+                                except Exception as e:
+                                    os.unlink(tmp_path)
+                                    st.error(f"Błąd ekstrakcji audio: {e}")
+                                    st.stop()
+
+                        # Sprawdź rozmiar po ekstrakcji
+                        rozmiar_po = os.path.getsize(tmp_path) / (1024 * 1024)
+                        if rozmiar_po > MAX_MB:
+                            os.unlink(tmp_path)
+                            st.error(f"Audio po ekstrakcji nadal za duże ({rozmiar_po:.1f}MB). Maksimum to {MAX_MB}MB.")
+                            st.stop()
+
+                        with st.spinner("Transkrybuję..."):
                             with open(tmp_path, "rb") as f:
                                 transcript = client.audio.transcriptions.create(
                                     model="whisper-1",
                                     file=f
                                 )
-
                             os.unlink(tmp_path)
 
                         st.session_state.transkrypcja = transcript.text
