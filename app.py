@@ -71,7 +71,7 @@ def get_embedding(text):
     )
     return res.data[0].embedding
 
-def zapisz_do_qdrant(podsumowanie, transkrypcja, nazwa):
+def zapisz_do_qdrant(podsumowanie, transkrypcja, nazwa, podsumowanie_en=""):
     embedding = get_embedding(podsumowanie + "\n" + transkrypcja)
     qdrant.upsert(
         collection_name=COLLECTION_NAME,
@@ -81,6 +81,7 @@ def zapisz_do_qdrant(podsumowanie, transkrypcja, nazwa):
                 vector=embedding,
                 payload={
                     "podsumowanie": podsumowanie,
+                    "podsumowanie_en": podsumowanie_en,
                     "transkrypcja": transkrypcja,
                     "plik": nazwa,
                     "data": datetime.now().isoformat()
@@ -143,6 +144,52 @@ def generuj_docx_en(podsumowanie_en):
     doc.add_heading("Meeting Summary", 0)
     doc.add_heading("Summary", level=1)
     doc.add_paragraph(podsumowanie_en)
+    buf = BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf
+
+def pobierz_wszystkie_jako_docx(jezyk="PL"):
+    wyniki = qdrant.scroll(
+        collection_name=COLLECTION_NAME,
+        limit=100,
+        with_payload=True,
+        with_vectors=False
+    )
+    notatki = sorted(
+        wyniki[0],
+        key=lambda x: x.payload.get("data", ""),
+        reverse=True
+    )
+
+    doc = Document()
+
+    if jezyk == "PL":
+        doc.add_heading("Notatnik Spotkań", 0)
+    else:
+        doc.add_heading("Meeting Notes", 0)
+
+    for n in notatki:
+        p = n.payload
+        data = p.get("data", "")[:16]
+        plik = p.get("plik", "brak nazwy")
+
+        doc.add_paragraph("─" * 60)
+
+        if jezyk == "PL":
+            doc.add_heading(f"Spotkanie — {data}", level=1)
+            doc.add_paragraph(f"Plik: {plik}")
+            doc.add_heading("Podsumowanie", level=2)
+            doc.add_paragraph(p.get("podsumowanie", "brak podsumowania"))
+            doc.add_heading("Transkrypcja", level=2)
+            doc.add_paragraph(p.get("transkrypcja", "brak transkrypcji"))
+        else:
+            doc.add_heading(f"Meeting — {data}", level=1)
+            doc.add_paragraph(f"File: {plik}")
+            doc.add_heading("Summary", level=2)
+            # EN summary może nie być w Qdrant - fallback na PL
+            doc.add_paragraph(p.get("podsumowanie_en", p.get("podsumowanie", "no summary")))
+
     buf = BytesIO()
     doc.save(buf)
     buf.seek(0)
@@ -357,17 +404,23 @@ with tab1:
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
-            if st.button("Zapisz Word (PL+EN)", key="zapisz_word"):
-                try:
-                    zapisz_do_pliku(
-                        st.session_state.podsumowanie,
-                        st.session_state.transkrypcja,
-                        st.session_state.nazwa_pliku,
-                        st.session_state.podsumowanie_en
-                    )
-                    st.success("Dopisano do notatki_PL.docx i notatki_EN.docx!")
-                except Exception as e:
-                    st.error(f"Błąd zapisu: {e}")
+            if not qdrant_ok:
+                st.warning("Brak połączenia z bazą")
+            elif st.session_state.zapisano_qdrant:
+                st.success("Zapisano w bazie!")
+            else:
+                if st.button("Zapisz w bazie", key="zapisz_baza_main"):
+                    try:
+                        with st.spinner("Zapisuję..."):
+                            zapisz_do_qdrant(
+                                st.session_state.podsumowanie,
+                                st.session_state.transkrypcja,
+                                st.session_state.nazwa_pliku
+                            )
+                        st.session_state.zapisano_qdrant = True
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Błąd zapisu do bazy: {e}")
 
         with col2:
             buf_pl = generuj_docx_pl(
@@ -403,7 +456,8 @@ with tab1:
                             zapisz_do_qdrant(
                                 st.session_state.podsumowanie,
                                 st.session_state.transkrypcja,
-                                st.session_state.nazwa_pliku
+                                st.session_state.nazwa_pliku,
+                                st.session_state.podsumowanie_en
                             )
                         st.session_state.zapisano_qdrant = True
                         st.rerun()
@@ -417,6 +471,34 @@ with tab1:
 with tab2:
 
     st.subheader("Wyszukaj spotkania")
+
+    if qdrant_ok:
+        teraz = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        col_dl1, col_dl2 = st.columns(2)
+
+        with col_dl1:
+            try:
+                buf_all_pl = pobierz_wszystkie_jako_docx(jezyk="PL")
+                st.download_button(
+                    "📥 Pobierz wszystkie (PL)",
+                    buf_all_pl,
+                    file_name=f"wszystkie_spotkania_PL_{teraz}.docx",
+                    key="pobierz_wszystkie_pl"
+                )
+            except Exception as e:
+                st.error(f"Błąd generowania pliku: {e}")
+
+        with col_dl2:
+            try:
+                buf_all_en = pobierz_wszystkie_jako_docx(jezyk="EN")
+                st.download_button(
+                    "📥 Pobierz wszystkie (EN)",
+                    buf_all_en,
+                    file_name=f"all_meetings_EN_{teraz}.docx",
+                    key="pobierz_wszystkie_en"
+                )
+            except Exception as e:
+                st.error(f"Błąd generowania pliku: {e}")
 
     if not qdrant_ok:
         st.error("Brak połączenia z Qdrant.")
