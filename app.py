@@ -6,7 +6,7 @@ from datetime import datetime
 from config import init_openai, init_qdrant
 from audio import transkrybuj_plik, transkrybuj_nagranie
 from summarizer import generuj_podsumowanie, tlumacz_na_angielski
-from database import zapisz_do_qdrant, wyszukaj_w_qdrant, pobierz_wszystkie, napraw_brakujace_en
+from database import zapisz_do_qdrant, wyszukaj_w_qdrant, pobierz_wszystkie
 from documents import generuj_docx_pl, generuj_docx_en, pobierz_wszystkie_jako_docx
 
 load_dotenv()
@@ -293,17 +293,6 @@ with tab2:
                 )
             except Exception as e:
                 st.error(f"Błąd generowania pliku: {e}")
-
-        st.divider()
-
-        # Naprawa brakujących tłumaczeń EN
-        if st.button("🔧 Napraw brakujące tłumaczenia EN", key="migracja_en"):
-            try:
-                with st.spinner("Tłumaczę brakujące podsumowania..."):
-                    naprawiono = napraw_brakujace_en(client, qdrant, COLLECTION_NAME)
-                st.success(f"Naprawiono {naprawiono} rekordów!")
-            except Exception as e:
-                st.error(f"Błąd migracji: {e}")
 
     st.divider()
     st.subheader("Wyszukaj spotkania")
