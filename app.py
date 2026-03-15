@@ -13,6 +13,14 @@ import uuid
 load_dotenv()
 env = dotenv_values(".env")
 
+def get_secret(key):
+    """Czyta sekret z .env (lokalnie) lub st.secrets (Streamlit Cloud)."""
+    if key in env:
+        return env[key]
+    if key in st.secrets:
+        return st.secrets[key]
+    return None
+
 st.set_page_config(
     page_title="MeeetingSum",
     page_icon="logo.png",  # plik w folderze projektu
@@ -21,8 +29,9 @@ st.set_page_config(
 
 # ---------- API ----------
 if not st.session_state.get("openai_api_key"):
-    if "OPENAI_API_KEY" in env:
-        st.session_state["openai_api_key"] = env["OPENAI_API_KEY"]
+    api_key = get_secret("OPENAI_API_KEY")
+    if api_key:
+        st.session_state["openai_api_key"] = api_key
     else:
         st.info("Dodaj klucz API OpenAI")
         st.session_state["openai_api_key"] = st.text_input("Klucz API", type="password")
@@ -37,8 +46,8 @@ client = openai.OpenAI(api_key=st.session_state["openai_api_key"])
 # ---------- QDRANT ----------
 try:
     qdrant = QdrantClient(
-        url=env["QDRANT_URL"],
-        api_key=env["QDRANT_API_KEY"]
+        url=get_secret("QDRANT_URL"),
+        api_key=get_secret("QDRANT_API_KEY")
     )
     COLLECTION_NAME = "spotkania"
     if not qdrant.collection_exists(COLLECTION_NAME):
