@@ -23,7 +23,7 @@ def get_secret(key):
 
 st.set_page_config(
     page_title="MeeetingSum",
-    page_icon="logo.png",  # plik w folderze projektu
+    page_icon="uplogo.png",  # plik w folderze projektu
     layout="centered"
 )
 
@@ -453,7 +453,8 @@ with tab1:
                             zapisz_do_qdrant(
                                 st.session_state.podsumowanie,
                                 st.session_state.transkrypcja,
-                                st.session_state.nazwa_pliku
+                                st.session_state.nazwa_pliku,
+                                st.session_state.podsumowanie_en
                             )
                         st.session_state.zapisano_qdrant = True
                         st.rerun()
