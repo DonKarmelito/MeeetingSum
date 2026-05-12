@@ -92,7 +92,7 @@ with col_tytul:
     """, unsafe_allow_html=True)
 
 with col_logo:
-    st.image("logo.png", width=150)
+    st.image("newlogo.png", width=150)
 
 # ====================================================
 # ZAKŁADKI GŁÓWNE
